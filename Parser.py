@@ -3,7 +3,10 @@ import datetime
 
 class PalParser(object):
     def __init__(self):
+        # The label and branch dictionaries are separated to compare and determine valid labels at end
+        # Otherwise, tracking these errors would be very difficult
         self.labelDictionary = {}
+        self.branchDictionary = {}
         self.variableList = []
         self.lineCount = 1
         self.errorDictionary = {
@@ -33,6 +36,7 @@ class PalParser(object):
                         logFile.write(str(self.lineCount) + ". " + lineData + "\n")
                         self.analyzeLine(lineData.replace(",", " "), logFile)
                         self.lineCount += 1
+            self.printLabelData(logFile)
             self.printEndSummary(logFile)
         if inputFile.closed == False:
             inputFile.close()
@@ -66,7 +70,7 @@ class PalParser(object):
         else:
             self.defToken = 1
             if ":" in lineItems[0]:
-                errorMessage = self.validLabelCheck(lineItems[0].strip(":"))
+                errorMessage = self.validLabelCheck(lineItems[0].strip(":"), "first")
                 if errorMessage == "":
                     del lineItems[0]
                     errorMessage = self.opCodeCheck(lineItems)
@@ -85,7 +89,7 @@ class PalParser(object):
         logFile.write("PAL Program Listing\n")
 
     def printEndSummary(self, logFile):
-        logFile.write("\n\n\nSummary ----------\n")
+        logFile.write("\n\n\nSummary ----------\n\n")
         logFile.write("\n")
         logFile.write("total lines   =  " + str(self.lineCount - 1) + "\n")
         logFile.write("total errors  =  " + str(self.totalErrorCount()) + "\n")
@@ -106,6 +110,36 @@ class PalParser(object):
         for key in self.errorDictionary:
             if not self.errorDictionary[key] == 0:
                 logFile.write("  " + str(self.errorDictionary[key]) + "   " + key + "\n")
+
+    def printLabelData(self, logFile):
+        logFile.write("\n\nLabels:\n")
+        keys = []
+        if self.labelDictionary or self.branchDictionary:
+            for key in self.branchDictionary:
+                for item in self.labelDictionary:
+                    if item == key and self.labelDictionary[key] == 0:
+                        logFile.write(key + " is branched to " + str(self.branchDictionary[key]))
+                        logFile.write(" times and is valid\n")
+                        keys.append(key)
+                    elif item == key and not self.labelDictionary[key] == 0:
+                        logFile.write(key + " is branched to " + str(self.branchDictionary[key]))
+                        logFile.write(" times and is invalid\n")
+                        keys.append(key)
+            for key in keys:
+                del self.labelDictionary[key]
+                del self.branchDictionary[key]
+            # There are separate checks here to see if there are any invalid branches that were not caught earlier
+            if self.branchDictionary:
+                for key in self.branchDictionary:
+                    logFile.write(key + " is branched to " + str(self.branchDictionary[key]))
+                    logFile.write(" times and is invalid\n")
+                    logFile.write("***error: " + self.labelProblemsMessage(key, " branches to a nonexistent label\n"))
+            if self.labelDictionary:
+                for key in self.labelDictionary:
+                    logFile.write(key + " is branched to " + str(self.labelDictionary[key]) + " times and valid\n")
+                    logFile.write("***error: " + self.labelProblemsMessage(key, " is never branched to"))
+        else:
+            logFile.write("There are no labels in this program\n")
 
 
 ########################################################################################################################
@@ -131,7 +165,7 @@ class PalParser(object):
         if re.match(r'^[A-Z]{1,5}$', variable) and self.defToken == 0:
             self.variableList.append(variable)
             return ""
-        elif re.match(r'^[A-Z]{1,5}$', variable) and defToken == 1:
+        elif re.match(r'^[A-Z]{1,5}$', variable) and self.defToken == 1:
             for i in self.variableList:
                 if i == variable:
                     return ""  # variable was found
@@ -143,19 +177,23 @@ class PalParser(object):
             return self.illFormedOperandMessage(num, "value for octal")
         return ""
 
-    # Need to change this to check multiple branches to (okay) vs label (multiple 1st line incidences)
-    def validLabelCheck(self, label):
+    def validLabelCheck(self, label, type):
+        errorMessage = ""
         if re.match(r'^[A-Z]{1,5}$', label):
-            if label in self.labelDictionary == True:
-                if self.labelDictionary[label] >= 1:
-                    self.labelDictionary[label] += 1
-                    return self.labelProblemsMessage(label, "appears too many times in the code")
-                else:
-                    self.labelDictionary[label] += 1
-            else:
+            if label in self.labelDictionary == True and type == "first":
+                print "a"
+                errorMessage = self.labelProblemsMessage(label, "cannot branch to two locations")
+            elif label not in self.labelDictionary and type == "first":
+                print self.lineCount
                 self.labelDictionary[label] = 0
-                return ""
-        return self.illFormedLabelMessage(label)
+            elif type == "branch":
+                if label not in self.branchDictionary:
+                    self.branchDictionary[label] = 1
+                else:
+                    self.branchDictionary[label] += 1
+        else:
+            errorMessage = self.illFormedLabelMessage(label)
+        return errorMessage
 
     def opCodeCheck(self, lineItems):
         if lineItems[0] == "DEF":
@@ -194,7 +232,7 @@ class PalParser(object):
 
     def typeCheckSource(self, item):
         if re.match(r'^[A-Z]{1,5}$', item):
-            return self.validLabelCheck(item)
+            return self.validVariableCheck(item)
         elif re.match(r'^[0-9]{1,}$', item):
             return self.wrongOperandTypeMessage(item, "variable or register", "number")
         else:
@@ -208,14 +246,14 @@ class PalParser(object):
 
     def typeCheckLabel(self, item):
         if re.match(r'^[A-Z]{1,5}$', item):
-            return self.validLabelCheck(item)
+            return self.validLabelCheck(item, "branch")
         elif re.match(r'^[0-9]{1,}$', item):
             return self.wrongOperandTypeMessage(item, "label", "number")
         else:
             return self.wrongOperandTypeMessage(item, "label", "variable or register")
 
 ########################################################################################################################
-    # Change splits to strips if syntax doesn't require a space (R1,R2,R3)
+
     def threeSourceCheck(self, lineItems):
         countToken = 0
         errorMessage = ""
