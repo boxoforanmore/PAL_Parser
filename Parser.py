@@ -25,6 +25,7 @@ class PalParser(object):
         self.wrongOperandType = 0
         self.labelProblems = 0
         self.startToken = 0
+        self.endToken = 0
         self.defToken = 0
         self.registers = ["R0", "R1", "R2", "R3", "R4", "R4", "R5", "R6", "R7"]
         self.now = datetime.datetime.now()
@@ -52,6 +53,9 @@ class PalParser(object):
         errorMessage = ""
         if lineItems == "":
             return
+        elif self.endToken > 0:
+            errorMessage = "invalid opcode -- opcode cannot be present after END"
+            self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 0 and not lineItems[0] == "SRT":
             errorMessage = "invalid opcode -- expected SRT"
             self.invalidOpcode += 1
@@ -68,6 +72,8 @@ class PalParser(object):
                 self.errorDictionary["too many operands"] += 1
         elif self.defToken == 0 and lineItems[0] == "DEF":
             errorMessage = self.variableAddressCheck(lineItems)
+        elif lineItems[0] == "END":
+            self.endToken += 1
         else:
             self.defToken = 1
             if ":" in lineItems[0]:
