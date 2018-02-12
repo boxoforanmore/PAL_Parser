@@ -127,6 +127,10 @@ class PalParser(object):
             return self.oneSourceCheck(lineItems)
         elif lineItems[0] == "DEC":
             return self.oneSourceCheck(lineItems)
+        elif lineItems[0] == "COPY":
+            return self.twoSourceCheck(lineItems)
+        elif lineItems[0] == "MOVE":
+            return self.valueSourceCheck(lineItems)
         return ""
 
     def validRegisterCheck(self, reg):
@@ -143,26 +147,36 @@ class PalParser(object):
         else:
             return self.validRegisterCheck(item)
 
-########################################################################################################################
+    def typeCheckValue(self, item):
+        if re.match(r'^[0-9]{1,}', item):
+            return self.validOctalCheck(item)
+        else:
+            return self.wrongOperandTypeMessage(item, "number", "variable or register")
 
+    def typeCheckLabel(self, item):
+        if re.match(r'^[A-Z]{1,5}$', item):
+            return self.validLabelCheck(item)
+        elif re.match(r'^[0-9]{1,}$', item):
+            return self.wrongOperandTypeMessage(item, "label", "number")
+        else:
+            return self.wrongOperandTypeMessage(item, "label", "variable or register")
+
+########################################################################################################################
+    # Change splits to strips if syntax doesn't require a space (R1,R2,R3)
     def threeSourceCheck(self, lineItems):
         countToken = 0
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].strip(","))
-                if errorMessage:
-                    return errorMessage
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
             elif i == 2:
-                errorMessage = self.typeCheckSource(lineItems[i].strip(","))
-                if errorMessage:
-                    return errorMessage
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
             elif i == 3:
-                errorMessage = self.typeCheckSource(lineItems[i].strip(","))
-                if errorMessage:
-                    return errorMessage
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
             elif i > 3:
                 return self.tooManyOperandsMessage(lineItems[0], 3)
+            if errorMessage:
+                return errorMessage
             countToken += 1
         if countToken < 4:
             return self.tooFewOperandsMessage(lineItems[0], 3)
@@ -173,24 +187,68 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].strip(","))
-                if errorMessage:
-                    return errorMessage
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
             elif i > 1:
                 return self.tooManyOperandsMessage(lineItems[0], 1)
+            if errorMessage:
+                return errorMessage
             countToken += 1
-        if countToken < 1:
+        if countToken < 2:
             return self.tooFewOperandsMessage(lineItems[0], 1)
         return errorMessage
 
     def twoSourceCheck(self, lineItems):
-        return
+        countToken = 0
+        errorMessage = ""
+        for i in range(len(lineItems)):
+            if i == 1:
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+            elif i == 2:
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+            elif i > 2:
+                return self.tooManyOperandsMessage(lineItems[0], 2)
+            if errorMessage:
+                return errorMessage
+            countToken += 1
+        if countToken < 3:
+            return self.tooFewOperandsMessage(lineItems[0], 2)
+        return errorMessage
 
     def valueSourceCheck(self, lineItems):
-        return
+        countToken = 0
+        errorMessage = ""
+        for i in range(len(lineItems)):
+            if i == 1:
+                errorMessage = self.typeCheckValue(lineItems[i].split(",")[0])
+            elif i == 2:
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+            elif i > 2:
+                return self.tooManyOperandsMessage(lineItems[i], 2)
+            if errorMessage:
+                return errorMessage
+            countToken += 1
+        if countToken < 3:
+            return self.tooFewOperandsMessage(lineItems[0], 2)
+        return errorMessage
 
     def twoSourceLabelCheck(self, lineItems):
-        return
+        countToken = 0
+        errorMessage = ""
+        for i in range(len(lineItems)):
+            if i == 1:
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+            elif i == 2:
+                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+            elif i == 3:
+                errorMessage = self.typeCheckLabel(lineItems[i].split(",")[0])
+            elif i > 3:
+                return self.tooManyOperandsMessage(lineItems[0], 3)
+            if errorMessage:
+                return errorMessage
+            countToken += 1
+        if countToken < 4:
+            return self.tooFewOperandsMessage(lineItems[0], 3)
+        return errorMessage
 
 ########################################################################################################################
 
@@ -198,7 +256,7 @@ class PalParser(object):
         self.tooManyOperands += 1
         return "too many operands -- expected " + str(num) + " operands for " + item
 
-    def tooFewOperandsMessage(selfs, item, num):
+    def tooFewOperandsMessage(self, item, num):
         self.tooFewOperands += 1
         return "too few operands -- expected " + str(num) + " operands for " + item
 
