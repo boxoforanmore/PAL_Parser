@@ -16,14 +16,6 @@ class PalParser(object):
             "label problems": 0,
             "variable problems": 0
         }
-        self.illFormedLabel = 0
-        self.variableProblems = 0
-        self.invalidOpcode = 0
-        self.tooManyOperands = 0
-        self.tooFewOperands = 0
-        self.illFormedOperands = 0
-        self.wrongOperandType = 0
-        self.labelProblems = 0
         self.startToken = 0
         self.endToken = 0
         self.defToken = 0
@@ -58,17 +50,14 @@ class PalParser(object):
             self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 0 and not lineItems[0] == "SRT":
             errorMessage = "invalid opcode -- expected SRT"
-            self.invalidOpcode += 1
             self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 1 and lineItems[0] == "SRT":
             errorMessage = "invalid opcode -- SRT should only occur at the start of a program"
-            self.invalidOpcode += 1
             self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 0 and lineItems[0] == "SRT":
             self.startToken += 1
             if len(lineItems) > 1:
                 errorMessage = "too many operands -- SRT should be on it's own line"
-                self.tooManyOperands += 1
                 self.errorDictionary["too many operands"] += 1
         elif self.defToken == 0 and lineItems[0] == "DEF":
             errorMessage = self.variableAddressCheck(lineItems)
@@ -108,9 +97,10 @@ class PalParser(object):
             logFile.write("This PAL program is not valid\n")
 
     def totalErrorCount(self):
-        totalHalf1 = self.illFormedLabel + self.invalidOpcode + self.tooManyOperands + self.tooFewOperands
-        totalHalf2 = self.illFormedOperands + self.wrongOperandType + self.labelProblems + self.variableProblems
-        return totalHalf1 + totalHalf2
+        totalCount = 0
+        for key in self.errorDictionary:
+            totalCount += self.errorDictionary[key]
+        return totalCount
 
     def errorCounts(self, logFile):
         for key in self.errorDictionary:
@@ -169,7 +159,6 @@ class PalParser(object):
 
     def opCodeCheck(self, lineItems):
         if lineItems[0] == "DEF":
-            self.invalidOpcode += 1
             self.errorDictionary["invalid opcode"] += 1
             return "invalid opcode -- all DEF opcodes must appear after start and before other opcodes"
         elif lineItems[0] == "ADD":
@@ -332,42 +321,34 @@ class PalParser(object):
 ########################################################################################################################
 
     def tooManyOperandsMessage(self, item, num):
-        self.tooManyOperands += 1
         self.errorDictionary["too many operands"] += 1
         return "too many operands -- expected " + str(num) + " operands for " + item
 
     def tooFewOperandsMessage(self, item, num):
-        self.tooFewOperands += 1
         self.errorDictionary["too few operands"] += 1
         return "too few operands -- expected " + str(num) + " operands for " + item
 
     def illFormedOperandMessage(self, item, type):
         self.errorDictionary["ill-formed operands"] += 1
-        self.illFormedOperands += 1
         return "ill-formed operands -- " + item + " is an invalid " + type
 
     def variableProblemsMessage(self, item):
-        self.variableProblems += 1
         self.errorDictionary["variable problems"] += 1
         return "variable problems -- " + item + " was not initialized"
 
     def labelProblemsMessage(self, item, type):
-        self.labelProblems += 1
         self.errorDictionary["label problems"] += 1
         return "label problems -- label " + item + " " + type
 
     def illFormedLabelMessage(self, item):
-        self.illFormedLabel += 1
         self.errorDictionary["ill-formed label"] += 1
         return "ill formed label -- " + item + " does not follow label syntax"
 
     def wrongOperandTypeMessage(self, item, expected, present):
-        self.wrongOperandType += 1
         self.errorDictionary["wrong operand type"] += 1
         return "wrong operand type -- " + present + " where " + expected + " expected at " + item
 
     def invalidOpCodeMessage(self, item):
-        self.invalidOpcode += 1
         self.errorDictionary["invalid opcode"] += 1
         return "invalid opcode -- " + item + " is not a valid opcode"
 
