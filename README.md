@@ -6,7 +6,7 @@ To specify the input file, change the string input on line 377
 
 PAL Parser - Syntax Rules
 
-"
+`
 <program> -> SRT <stmt_list> END
 <stmt_list> -> <stmts> | <stmts> <stmt_list>
 <stmts> -> <label> <stmt> | <stmt> <stmts> | <stmt>
@@ -42,4 +42,4 @@ PAL Parser - Syntax Rules
            <value> (‘0’ | ‘1’ | ‘2’ | ‘3’ | ‘4’ | ‘5’ | ‘6’ | ‘7’)
 <comments> -> ;<comment>
 <comment> -> ^\*{1,}
-"
+`
