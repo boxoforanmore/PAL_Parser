@@ -1,10 +1,21 @@
 import re
+import datetime
 
 class PalParser(object):
     def __init__(self):
         self.labelDictionary = {}
         self.variableList = []
         self.lineCount = 1
+        self.errorDictionary = {
+            "ill-formed label": 0,
+            "invalid opcode": 0,
+            "too many operands": 0,
+            "too few operands": 0,
+            "ill-formed operands": 0,
+            "wrong operand type": 0,
+            "label problems": 0,
+            "variable problems": 0
+        }
         self.illFormedLabel = 0
         self.variableProblems = 0
         self.invalidOpcode = 0
@@ -16,17 +27,20 @@ class PalParser(object):
         self.startToken = 0
         self.defToken = 0
         self.registers = ["R0", "R1", "R2", "R3", "R4", "R4", "R5", "R6", "R7"]
+        self.now = datetime.datetime.now()
 
     def main(self, inputFileName):
         outputFileName = inputFileName.split(".")[0] + ".log"
         with open(outputFileName, "w") as logFile:
             with open(inputFileName, "r") as inputFile:
+                self.printHeader(logFile, inputFileName, outputFileName)
                 for line in inputFile:
                     lineData = line.split(";")[0].split("\n")[0]
                     if lineData.strip(" "):
                         logFile.write(str(self.lineCount) + ". " + lineData + "\n")
-                        self.analyzeLine(lineData, logFile)
+                        self.analyzeLine(lineData.replace(",", " "), logFile)
                         self.lineCount += 1
+            self.printEndSummary(logFile)
         if inputFile.closed == False:
             inputFile.close()
         if logFile.closed == False:
@@ -41,14 +55,17 @@ class PalParser(object):
         elif self.startToken == 0 and not lineItems[0] == "SRT":
             errorMessage = "invalid opcode -- expected SRT"
             self.invalidOpcode += 1
+            self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 1 and lineItems[0] == "SRT":
             errorMessage = "invalid opcode -- SRT should only occur at the start of a program"
             self.invalidOpcode += 1
+            self.errorDictionary["invalid opcode"] += 1
         elif self.startToken == 0 and lineItems[0] == "SRT":
             self.startToken += 1
             if len(lineItems) > 1:
                 errorMessage = "too many operands -- SRT should be on it's own line"
                 self.tooManyOperands += 1
+                self.errorDictionary["too many operands"] += 1
         elif self.defToken == 0 and lineItems[0] == "DEF":
             errorMessage = self.variableAddressCheck(lineItems)
         else:
@@ -63,6 +80,38 @@ class PalParser(object):
         if not (errorMessage == ""):
             logFile.write("****error: " + errorMessage + "\n")
 
+    def printHeader(self, logFile, inputFile, outputFile):
+        logFile.write("Parse of PAL Program by Parser.py\n")
+        logFile.write("INPUT: " + inputFile + "\n")
+        logFile.write("OUTPUT: " + outputFile + "\n")
+        logFile.write("PROCESS DATE: " + str(self.now.month) + "/" + str(self.now.day) + "/" + str(self.now.year) + "\n")
+        logFile.write("NAME: " + "Peter Nielson\n")
+        logFile.write("CS 3210\n\n\n\n")
+        logFile.write("PAL Program Listing\n")
+
+    def printEndSummary(self, logFile):
+        logFile.write("\n\n\nSummary ----------\n")
+        logFile.write("\n")
+        logFile.write("total lines   =  " + str(self.lineCount - 1) + "\n")
+        logFile.write("total errors  =  " + str(self.totalErrorCount()) + "\n")
+        self.errorCounts(logFile)
+        logFile.write("\n\n")
+        if self.totalErrorCount() == 0:
+            logFile.write("This PAL program is valid\n")
+        else:
+            logFile.write("This PAL program is not valid\n")
+
+    def totalErrorCount(self):
+        totalHalf1 = self.illFormedLabel + self.invalidOpcode + self.tooManyOperands + self.tooFewOperands
+        totalHalf2 = self.illFormedOperands + self.wrongOperandType + self.labelProblems + self.variableProblems
+        return totalHalf1 + totalHalf2
+
+    def errorCounts(self, logFile):
+        for key in self.errorDictionary:
+            if not self.errorDictionary[key] == 0:
+                logFile.write("  " + str(self.errorDictionary[key]) + "   " + key + "\n")
+
+
 ########################################################################################################################
 
     def variableAddressCheck(self, line):
@@ -70,7 +119,7 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(line)):
             if i == 1:
-                errorMessage = self.validVariableCheck(line[i].strip(","))
+                errorMessage = self.validVariableCheck(line[i])
             elif i == 2:
                 errorMessage =  self.validOctalCheck(line[i])
             elif i > 2:
@@ -98,6 +147,7 @@ class PalParser(object):
             return self.illFormedOperandMessage(num, "value for octal")
         return ""
 
+    # Need to change this to check multiple branches to (okay) vs label (multiple 1st line incidences)
     def validLabelCheck(self, label):
         if re.match(r'^[A-Z]{1,5}$', label):
             if label in self.labelDictionary == True:
@@ -114,6 +164,7 @@ class PalParser(object):
     def opCodeCheck(self, lineItems):
         if lineItems[0] == "DEF":
             self.invalidOpcode += 1
+            self.errorDictionary["invalid opcode"] += 1
             return "invalid opcode -- all DEF opcodes must appear after start and before other opcodes"
         elif lineItems[0] == "ADD":
             return self.threeSourceCheck(lineItems)
@@ -131,7 +182,14 @@ class PalParser(object):
             return self.twoSourceCheck(lineItems)
         elif lineItems[0] == "MOVE":
             return self.valueSourceCheck(lineItems)
-        return ""
+        elif lineItems[0] == "BGT":
+            return self.twoSourceLabelCheck(lineItems)
+        elif lineItems[0] == "BEQ":
+            return self.twoSourceLabelCheck(lineItems)
+        elif lineItems[0] == "BR":
+            return self.oneLabelCheck(lineItems)
+        else:
+            return self.invalidOpCodeMessage(lineItems[0])
 
     def validRegisterCheck(self, reg):
         for i in self.registers:
@@ -168,11 +226,11 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i == 2:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i == 3:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i > 3:
                 return self.tooManyOperandsMessage(lineItems[0], 3)
             if errorMessage:
@@ -187,7 +245,7 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i > 1:
                 return self.tooManyOperandsMessage(lineItems[0], 1)
             if errorMessage:
@@ -202,9 +260,9 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i == 2:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i > 2:
                 return self.tooManyOperandsMessage(lineItems[0], 2)
             if errorMessage:
@@ -219,9 +277,9 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckValue(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckValue(lineItems[i])
             elif i == 2:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i > 2:
                 return self.tooManyOperandsMessage(lineItems[i], 2)
             if errorMessage:
@@ -236,11 +294,11 @@ class PalParser(object):
         errorMessage = ""
         for i in range(len(lineItems)):
             if i == 1:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i == 2:
-                errorMessage = self.typeCheckSource(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckSource(lineItems[i])
             elif i == 3:
-                errorMessage = self.typeCheckLabel(lineItems[i].split(",")[0])
+                errorMessage = self.typeCheckLabel(lineItems[i])
             elif i > 3:
                 return self.tooManyOperandsMessage(lineItems[0], 3)
             if errorMessage:
@@ -250,37 +308,62 @@ class PalParser(object):
             return self.tooFewOperandsMessage(lineItems[0], 3)
         return errorMessage
 
+    def oneLabelCheck(self, lineItems):
+        countToken = 0
+        errorMessage = ""
+        for i in range(len(lineItems)):
+            if i == 1:
+                errorMessage = self.typeCheckLabel(lineItems[i])
+            elif i > 1:
+                return self.tooManyOperandsMessage(lineItems[0], 1)
+            if errorMessage:
+                return errorMessage
+            countToken += 1
+        if countToken < 2:
+            return self.tooFewOperandsMessage(lineItems[0], 1)
+        return errorMessage
+
 ########################################################################################################################
 
     def tooManyOperandsMessage(self, item, num):
         self.tooManyOperands += 1
+        self.errorDictionary["too many operands"] += 1
         return "too many operands -- expected " + str(num) + " operands for " + item
 
     def tooFewOperandsMessage(self, item, num):
         self.tooFewOperands += 1
+        self.errorDictionary["too few operands"] += 1
         return "too few operands -- expected " + str(num) + " operands for " + item
 
     def illFormedOperandMessage(self, item, type):
+        self.errorDictionary["ill-formed operands"] += 1
         self.illFormedOperands += 1
         return "ill-formed operands -- " + item + " is an invalid " + type
 
     def variableProblemsMessage(self, item):
         self.variableProblems += 1
+        self.errorDictionary["variable problems"] += 1
         return "variable problems -- " + item + " was not initialized"
 
     def labelProblemsMessage(self, item, type):
         self.labelProblems += 1
+        self.errorDictionary["label problems"] += 1
         return "label problems -- label " + item + " " + type
 
     def illFormedLabelMessage(self, item):
         self.illFormedLabel += 1
+        self.errorDictionary["ill-formed label"] += 1
         return "ill formed label -- " + item + " does not follow label syntax"
 
     def wrongOperandTypeMessage(self, item, expected, present):
         self.wrongOperandType += 1
+        self.errorDictionary["wrong operand type"] += 1
         return "wrong operand type -- " + present + " where " + expected + " expected at " + item
 
-
+    def invalidOpCodeMessage(self, item):
+        self.invalidOpcode += 1
+        self.errorDictionary["invalid opcode"] += 1
+        return "invalid opcode -- " + item + " is not a valid opcode"
 
 
 
