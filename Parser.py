@@ -73,7 +73,8 @@ class PalParser(object):
                 errorMessage = self.validLabelCheck(lineItems[0].strip(":"), "first")
                 if errorMessage == "":
                     del lineItems[0]
-                    errorMessage = self.opCodeCheck(lineItems)
+                    if not len(lineItems) == 0:
+                        errorMessage = self.opCodeCheck(lineItems)
             else:
                 errorMessage = self.opCodeCheck(lineItems)
         if not (errorMessage == ""):
@@ -393,4 +394,4 @@ class PalParser(object):
 
 
 parser = PalParser()
-parser.main("input.pal")
+parser.main("PAL Program 1.pal")
