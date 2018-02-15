@@ -2,7 +2,9 @@
 Parser.py parses a file according to the below loose BNF syntax
 and outputs a .log file with the same name and appropriate errors
 
-To specify the input file, change the string input on line 377
+Run project with `python2 Parser.py` or use an IDE (code is built on Python 2.7.14)
+
+To specify the input file, change the string input on line 396
 
 PAL Parser - Syntax Rules
 
