@@ -87,6 +87,7 @@ class PalParser(object):
         logFile.write("NAME: " + "Peter Nielson\n")
         logFile.write("CS 3210\n\n\n\n")
         logFile.write("PAL Program Listing\n")
+        logFile.write("-------------------\n\n")
 
     def printEndSummary(self, logFile):
         logFile.write("\n\n\nSummary ----------\n\n")
@@ -184,7 +185,6 @@ class PalParser(object):
                 print "a"
                 errorMessage = self.labelProblemsMessage(label, "cannot branch to two locations")
             elif label not in self.labelDictionary and type == "first":
-                print self.lineCount
                 self.labelDictionary[label] = 0
             elif type == "branch":
                 if label not in self.branchDictionary:
