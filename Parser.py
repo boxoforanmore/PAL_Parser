@@ -32,7 +32,7 @@ class PalParser(object):
                 self.printHeader(logFile, inputFileName, outputFileName)
                 for line in inputFile:
                     lineData = line.split(";")[0].split("\n")[0]
-                    if lineData.strip(" "):
+                    if lineData.strip(" ").replace("\r", ""):
                         logFile.write(str(self.lineCount) + ". " + lineData + "\n")
                         self.analyzeLine(lineData.replace(",", " "), logFile)
                         self.lineCount += 1
@@ -73,6 +73,7 @@ class PalParser(object):
                 errorMessage = self.validLabelCheck(lineItems[0].strip(":"), "first")
                 if errorMessage == "":
                     del lineItems[0]
+                    # Empty lists would be sent and indexed with error without this check
                     if not len(lineItems) == 0:
                         errorMessage = self.opCodeCheck(lineItems)
             else:
@@ -371,9 +372,10 @@ class PalParser(object):
         self.errorDictionary["ill-formed operands"] += 1
         return "ill-formed operands -- " + item + " is an invalid " + type
 
+    # This is to separate from the illFormedOperand in case of future syntax reporting changes and specific messages
     def variableProblemsMessage(self, item):
-        self.errorDictionary["variable problems"] += 1
-        return "variable problems -- " + item + " was not initialized"
+        self.errorDictionary["ill-formed operands"] += 1
+        return "ill-formed operands -- variable " + item + " was not initialized"
 
     def labelProblemsMessage(self, item, type):
         self.errorDictionary["label problems"] += 1
@@ -394,4 +396,4 @@ class PalParser(object):
 
 
 parser = PalParser()
-parser.main("PAL Program 1.pal")
+parser.main("My PAL Test 2.pal")
